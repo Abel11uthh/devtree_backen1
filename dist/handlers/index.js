@@ -5,47 +5,58 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = exports.createAccount = void 0;
 const express_validator_1 = require("express-validator");
+const slug_1 = __importDefault(require("slug"));
 const Users_1 = __importDefault(require("../models/Users"));
 const auth_1 = require("../utils/auth");
-// Registrar la cuenta
+const jwt_1 = require("../utils/jwt");
 const createAccount = async (req, res) => {
-    const { email, password } = req.body;
-    // Verificar si el usuario ya existe
+    const { email, password, handle, telefono } = req.body;
+    const errors = [];
+    // Verificar si el email ya está registrado
     const userExists = await Users_1.default.findOne({ email });
     if (userExists) {
-        res.status(409).json({ error: "Un usuario con ese mail ya está registrado" });
-        return;
+        errors.push({ path: "email", msg: "Un usuario con ese email ya está registrado" });
     }
-    // Crear el nuevo usuario
+    // Verificar si el handle (nombre de usuario) ya está registrado
+    const slugHandle = (0, slug_1.default)(handle, '');
+    const handleExists = await Users_1.default.findOne({ handle: slugHandle });
+    if (handleExists) {
+        errors.push({ path: "handle", msg: "Nombre de usuario no disponible" });
+    }
+    // Verificar si el teléfono ya está registrado
+    const slugTelefono = (0, slug_1.default)(telefono, '');
+    const telefonoExists = await Users_1.default.findOne({ telefono: slugTelefono });
+    if (telefonoExists) {
+        errors.push({ path: "telefono", msg: "Este teléfono ya está registrado" });
+    }
+    // Si hay errores, devolverlos todos
+    if (errors.length > 0) {
+        return res.status(409).json({ errors });
+    }
+    // Crear nuevo usuario
     const user = new Users_1.default(req.body);
     user.password = await (0, auth_1.hashPassword)(password);
+    user.handle = slugHandle;
     await user.save();
-    res.status(201).send("Registro creado correctamente");
+    return res.status(201).json({ message: "Registro creado correctamente" });
 };
 exports.createAccount = createAccount;
-// Iniciar sesión
 const login = async (req, res) => {
-    // Validar errores en la solicitud
-    const errors = (0, express_validator_1.validationResult)(req);
+    let errors = (0, express_validator_1.validationResult)(req);
     if (!errors.isEmpty()) {
-        res.status(400).json({ errors: errors.array() });
-        return;
+        return res.status(400).json({ message: 'Error de validación', errors: errors.array() });
     }
     const { email, password } = req.body;
-    // Verificar si el usuario está registrado
     const user = await Users_1.default.findOne({ email });
     if (!user) {
-        res.status(404).json({ error: "El usuario no existe" });
-        return;
+        return res.status(404).json({ message: 'El Usuario no existe' });
     }
-    // Verificar la contraseña
-    const isPasswordCorrect = (0, auth_1.checkPassword)(password, user.password);
+    const isPasswordCorrect = await (0, auth_1.checkPassword)(password, user.password);
     if (!isPasswordCorrect) {
-        res.status(401).json({ error: "Contraseña incorrecta" });
-        return;
+        return res.status(401).json({ message: 'Password Incorrecto' });
     }
-    // Devolver un mensaje de éxito
-    res.status(200).json({ message: "Inicio de sesión exitoso" });
+    const token = (0, jwt_1.generateJWT)({ id: user.id });
+    return res.json({ token });
 };
 exports.login = login;
 //# sourceMappingURL=index.js.map
