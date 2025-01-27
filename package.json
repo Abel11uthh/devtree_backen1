@@ -11,6 +11,9 @@
   },
   "author": "abel hernandez cruz",
   "license": "ISC",
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.5.1",
